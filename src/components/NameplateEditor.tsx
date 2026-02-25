@@ -25,7 +25,7 @@ export default function NameplateEditor() {
   const [nameplates, setNameplates] = useState<Nameplate[]>([
     {
       id: '1',
-      name: 'Jan de Vries',
+      name: 'Raymond Schäffer',
       width: 100,
       height: 40,
       fontSize: 24,
