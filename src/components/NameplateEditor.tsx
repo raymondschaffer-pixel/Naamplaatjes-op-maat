@@ -19,16 +19,18 @@ interface Nameplate {
   textAlign: 'left' | 'center' | 'right';
   shape: 'rectangle' | 'banner';
   isBold: boolean;
-  layout: 'single' | 'grid2x2';
-  entries?: NameplateEntry[]; // Used for grid2x2: [TL, TR, BL, BR]
+  layout: 'single' | 'grid';
+  gridRows: number;
+  gridCols: number;
+  numberPlacement: 'left' | 'right' | 'above' | 'below';
+  entries?: NameplateEntry[]; // Used for grid layout
 }
 
 const PRESETS = [
-  { name: 'Intercom Paneel (65x65mm 2x2)', width: 65, height: 65, layout: 'grid2x2' },
-  { name: 'Standaard (100x40mm)', width: 100, height: 40, layout: 'single' },
-  { name: 'Klein (75x30mm)', width: 75, height: 30, layout: 'single' },
-  { name: 'Groot (150x50mm)', width: 150, height: 50, layout: 'single' },
-  { name: 'Visitekaart (85x55mm)', width: 85, height: 55, layout: 'single' },
+  { name: 'Intercom Paneel (65x65mm 2x2)', width: 65, height: 65, layout: 'grid', gridRows: 2, gridCols: 2, numberPlacement: 'above' },
+  { name: 'Intercom Rij (100x20mm 1x3)', width: 100, height: 60, layout: 'grid', gridRows: 3, gridCols: 1, numberPlacement: 'left' },
+  { name: 'Standaard (100x40mm)', width: 100, height: 40, layout: 'single', gridRows: 1, gridCols: 1, numberPlacement: 'left' },
+  { name: 'Klein (75x30mm)', width: 75, height: 30, layout: 'single', gridRows: 1, gridCols: 1, numberPlacement: 'left' },
 ];
 
 const FONTS = [
@@ -62,11 +64,15 @@ export default function NameplateEditor() {
   const [globalAlign, setGlobalAlign] = useState<'left' | 'center' | 'right'>('center');
   const [globalShape, setGlobalShape] = useState<'rectangle' | 'banner'>('banner');
   const [globalBold, setGlobalBold] = useState(true);
-  const [globalLayout, setGlobalLayout] = useState<'single' | 'grid2x2'>('single');
+  const [globalLayout, setGlobalLayout] = useState<'single' | 'grid'>('single');
+  const [globalRows, setGlobalRows] = useState(2);
+  const [globalCols, setGlobalCols] = useState(2);
+  const [globalNumberPlacement, setGlobalNumberPlacement] = useState<'left' | 'right' | 'above' | 'below'>('above');
   const [bulkNames, setBulkNames] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
 
   const addNameplate = () => {
+    const totalEntries = globalLayout === 'grid' ? globalRows * globalCols : 0;
     const newPlate: Nameplate = {
       id: Math.random().toString(36).substr(2, 9),
       name: '',
@@ -79,37 +85,39 @@ export default function NameplateEditor() {
       shape: globalShape,
       isBold: globalBold,
       layout: globalLayout,
-      entries: globalLayout === 'grid2x2' ? [
-        { name: '', number: '' },
-        { name: '', number: '' },
-        { name: '', number: '' },
-        { name: '', number: '' }
-      ] : undefined
+      gridRows: globalRows,
+      gridCols: globalCols,
+      numberPlacement: globalNumberPlacement,
+      entries: globalLayout === 'grid' ? Array.from({ length: totalEntries }, () => ({ name: '', number: '' })) : undefined
     };
     setNameplates([...nameplates, newPlate]);
   };
 
   const handleBulkAdd = () => {
     const names = bulkNames.split('\n').filter(n => n.trim() !== '');
-    const newPlates = names.map(name => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: name.trim(),
-      number: '',
-      width: globalWidth,
-      height: globalHeight,
-      fontSize: 24,
-      fontFamily: globalFont,
-      textAlign: globalAlign,
-      shape: globalShape,
-      isBold: globalBold,
-      layout: globalLayout,
-      entries: globalLayout === 'grid2x2' ? [
-        { name: name.trim(), number: '' },
-        { name: '', number: '' },
-        { name: '', number: '' },
-        { name: '', number: '' }
-      ] : undefined
-    }));
+    const newPlates = names.map(name => {
+      const totalEntries = globalLayout === 'grid' ? globalRows * globalCols : 0;
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        name: name.trim(),
+        number: '',
+        width: globalWidth,
+        height: globalHeight,
+        fontSize: 24,
+        fontFamily: globalFont,
+        textAlign: globalAlign,
+        shape: globalShape,
+        isBold: globalBold,
+        layout: globalLayout,
+        gridRows: globalRows,
+        gridCols: globalCols,
+        numberPlacement: globalNumberPlacement,
+        entries: globalLayout === 'grid' ? [
+          { name: name.trim(), number: '' },
+          ...Array.from({ length: totalEntries - 1 }, () => ({ name: '', number: '' }))
+        ] : undefined
+      };
+    });
     setNameplates([...nameplates, ...newPlates]);
     setBulkNames('');
     setShowBulkModal(false);
@@ -119,6 +127,9 @@ export default function NameplateEditor() {
     setGlobalWidth(preset.width);
     setGlobalHeight(preset.height);
     if (preset.layout) setGlobalLayout(preset.layout);
+    if (preset.gridRows) setGlobalRows(preset.gridRows);
+    if (preset.gridCols) setGlobalCols(preset.gridCols);
+    if (preset.numberPlacement) setGlobalNumberPlacement(preset.numberPlacement);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,16 +168,25 @@ export default function NameplateEditor() {
 
   const applyGlobalSettings = () => {
     setNameplates(
-      nameplates.map((p) => ({
-        ...p,
-        width: globalWidth,
-        height: globalHeight,
-        fontFamily: globalFont,
-        textAlign: globalAlign,
-        shape: globalShape,
-        isBold: globalBold,
-        layout: globalLayout,
-      }))
+      nameplates.map((p) => {
+        const totalEntries = globalLayout === 'grid' ? globalRows * globalCols : 0;
+        return {
+          ...p,
+          width: globalWidth,
+          height: globalHeight,
+          fontFamily: globalFont,
+          textAlign: globalAlign,
+          shape: globalShape,
+          isBold: globalBold,
+          layout: globalLayout,
+          gridRows: globalRows,
+          gridCols: globalCols,
+          numberPlacement: globalNumberPlacement,
+          entries: globalLayout === 'grid' && (!p.entries || p.entries.length !== totalEntries) 
+            ? Array.from({ length: totalEntries }, (_, i) => p.entries?.[i] || { name: '', number: '' })
+            : p.entries
+        };
+      })
     );
   };
 
@@ -309,7 +329,7 @@ export default function NameplateEditor() {
               <div>
                 <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Layout</label>
                 <div className="flex gap-1">
-                  {(['single', 'grid2x2'] as const).map((layout) => (
+                  {(['single', 'grid'] as const).map((layout) => (
                     <button
                       key={layout}
                       onClick={() => setGlobalLayout(layout)}
@@ -319,11 +339,53 @@ export default function NameplateEditor() {
                           : 'bg-stone-50 text-stone-400 border-stone-200 hover:border-stone-300'
                       }`}
                     >
-                      <span className="text-[10px] font-bold uppercase">{layout === 'single' ? 'Enkel' : 'Intercom (2x2)'}</span>
+                      <span className="text-[10px] font-bold uppercase">{layout === 'single' ? 'Enkel' : 'Intercom'}</span>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {globalLayout === 'grid' && (
+                <div className="space-y-4 pt-2 border-t border-stone-100">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Rijen</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={globalRows}
+                        onChange={(e) => setGlobalRows(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-200 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Kolommen</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={globalCols}
+                        onChange={(e) => setGlobalCols(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-200 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Nr. Positie</label>
+                    <select
+                      value={globalNumberPlacement}
+                      onChange={(e) => setGlobalNumberPlacement(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-200 outline-none transition-all text-sm"
+                    >
+                      <option value="left">Links van naam</option>
+                      <option value="right">Rechts van naam</option>
+                      <option value="above">Boven naam</option>
+                      <option value="below">Onder naam</option>
+                    </select>
+                  </div>
+                </div>
+              )}
               <button
                 onClick={applyGlobalSettings}
                 className="w-full py-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors text-sm font-medium"
@@ -405,10 +467,16 @@ export default function NameplateEditor() {
                         </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div 
+                        className="grid gap-2"
+                        style={{ 
+                          gridTemplateColumns: `repeat(${plate.gridCols}, 1fr)`,
+                          gridTemplateRows: `repeat(${plate.gridRows}, 1fr)`
+                        }}
+                      >
                         {plate.entries?.map((entry, idx) => (
                           <div key={idx} className="bg-stone-50 p-2 rounded-lg border border-stone-100">
-                            <div className="flex gap-2">
+                            <div className={`flex gap-2 ${['above', 'below'].includes(plate.numberPlacement) ? 'flex-col' : 'flex-row items-center'}`}>
                               <input
                                 type="text"
                                 placeholder="Nr."
@@ -418,7 +486,7 @@ export default function NameplateEditor() {
                                   newEntries[idx].number = e.target.value;
                                   updateNameplate(plate.id, { entries: newEntries });
                                 }}
-                                className="w-12 bg-transparent border-b border-stone-200 outline-none text-xs font-bold"
+                                className={`${['above', 'below'].includes(plate.numberPlacement) ? 'w-full' : 'w-12'} bg-transparent border-b border-stone-200 outline-none text-xs font-bold`}
                               />
                               <input
                                 type="text"
@@ -571,17 +639,29 @@ export default function NameplateEditor() {
                   </div>
                 </>
               ) : (
-                <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 border border-black">
+                <div 
+                  className="absolute inset-0 grid border border-black"
+                  style={{ 
+                    gridTemplateColumns: `repeat(${plate.gridCols}, 1fr)`,
+                    gridTemplateRows: `repeat(${plate.gridRows}, 1fr)`
+                  }}
+                >
                   {plate.entries?.map((entry, idx) => (
                     <div key={idx} className="border-[0.1mm] border-black p-1 flex flex-col justify-center relative overflow-hidden">
-                      {entry.number && (
-                        <span className="absolute top-0.5 left-1 text-[0.4em] font-bold leading-none">
-                          {entry.number}
+                      <div className={`flex w-full h-full items-center justify-center gap-1 ${
+                        plate.numberPlacement === 'above' ? 'flex-col' :
+                        plate.numberPlacement === 'below' ? 'flex-col-reverse' :
+                        plate.numberPlacement === 'right' ? 'flex-row-reverse' : 'flex-row'
+                      }`}>
+                        {entry.number && (
+                          <span className="text-[0.5em] font-bold leading-none opacity-80">
+                            {entry.number}
+                          </span>
+                        )}
+                        <span className="text-center leading-tight truncate" style={{ fontSize: '0.8em' }}>
+                          {entry.name}
                         </span>
-                      )}
-                      <span className="w-full text-center leading-tight px-1" style={{ fontSize: '0.8em' }}>
-                        {entry.name}
-                      </span>
+                      </div>
                     </div>
                   ))}
                 </div>
