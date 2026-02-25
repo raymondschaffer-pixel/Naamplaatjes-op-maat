@@ -3,9 +3,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Printer, Settings2, Type, Move, Download, Info, AlignLeft, AlignCenter, AlignRight, FileText, ClipboardList, Upload, Square, Bookmark, Bold } from 'lucide-react';
 import * as mammoth from 'mammoth';
 
+interface NameplateEntry {
+  name: string;
+  number: string;
+}
+
 interface Nameplate {
   id: string;
-  name: string;
+  name: string; // Used for single layout
+  number?: string; // Used for single layout
   width: number; // in mm
   height: number; // in mm
   fontSize: number;
@@ -13,14 +19,16 @@ interface Nameplate {
   textAlign: 'left' | 'center' | 'right';
   shape: 'rectangle' | 'banner';
   isBold: boolean;
+  layout: 'single' | 'grid2x2';
+  entries?: NameplateEntry[]; // Used for grid2x2: [TL, TR, BL, BR]
 }
 
 const PRESETS = [
-  { name: 'Standaard (100x40mm)', width: 100, height: 40 },
-  { name: 'Klein (75x30mm)', width: 75, height: 30 },
-  { name: 'Groot (150x50mm)', width: 150, height: 50 },
-  { name: 'Visitekaart (85x55mm)', width: 85, height: 55 },
-  { name: 'Badge (90x60mm)', width: 90, height: 60 },
+  { name: 'Intercom Paneel (65x65mm 2x2)', width: 65, height: 65, layout: 'grid2x2' },
+  { name: 'Standaard (100x40mm)', width: 100, height: 40, layout: 'single' },
+  { name: 'Klein (75x30mm)', width: 75, height: 30, layout: 'single' },
+  { name: 'Groot (150x50mm)', width: 150, height: 50, layout: 'single' },
+  { name: 'Visitekaart (85x55mm)', width: 85, height: 55, layout: 'single' },
 ];
 
 const FONTS = [
@@ -44,6 +52,7 @@ export default function NameplateEditor() {
       textAlign: 'center',
       shape: 'banner',
       isBold: true,
+      layout: 'single',
     },
   ]);
 
@@ -53,6 +62,7 @@ export default function NameplateEditor() {
   const [globalAlign, setGlobalAlign] = useState<'left' | 'center' | 'right'>('center');
   const [globalShape, setGlobalShape] = useState<'rectangle' | 'banner'>('banner');
   const [globalBold, setGlobalBold] = useState(true);
+  const [globalLayout, setGlobalLayout] = useState<'single' | 'grid2x2'>('single');
   const [bulkNames, setBulkNames] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
 
@@ -60,6 +70,7 @@ export default function NameplateEditor() {
     const newPlate: Nameplate = {
       id: Math.random().toString(36).substr(2, 9),
       name: '',
+      number: '',
       width: globalWidth,
       height: globalHeight,
       fontSize: 24,
@@ -67,6 +78,13 @@ export default function NameplateEditor() {
       textAlign: globalAlign,
       shape: globalShape,
       isBold: globalBold,
+      layout: globalLayout,
+      entries: globalLayout === 'grid2x2' ? [
+        { name: '', number: '' },
+        { name: '', number: '' },
+        { name: '', number: '' },
+        { name: '', number: '' }
+      ] : undefined
     };
     setNameplates([...nameplates, newPlate]);
   };
@@ -76,6 +94,7 @@ export default function NameplateEditor() {
     const newPlates = names.map(name => ({
       id: Math.random().toString(36).substr(2, 9),
       name: name.trim(),
+      number: '',
       width: globalWidth,
       height: globalHeight,
       fontSize: 24,
@@ -83,15 +102,23 @@ export default function NameplateEditor() {
       textAlign: globalAlign,
       shape: globalShape,
       isBold: globalBold,
+      layout: globalLayout,
+      entries: globalLayout === 'grid2x2' ? [
+        { name: name.trim(), number: '' },
+        { name: '', number: '' },
+        { name: '', number: '' },
+        { name: '', number: '' }
+      ] : undefined
     }));
     setNameplates([...nameplates, ...newPlates]);
     setBulkNames('');
     setShowBulkModal(false);
   };
 
-  const applyPreset = (preset: typeof PRESETS[0]) => {
+  const applyPreset = (preset: any) => {
     setGlobalWidth(preset.width);
     setGlobalHeight(preset.height);
+    if (preset.layout) setGlobalLayout(preset.layout);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +165,7 @@ export default function NameplateEditor() {
         textAlign: globalAlign,
         shape: globalShape,
         isBold: globalBold,
+        layout: globalLayout,
       }))
     );
   };
@@ -278,6 +306,24 @@ export default function NameplateEditor() {
                   <span className="text-xs font-semibold">Dikgedrukt</span>
                 </button>
               </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Layout</label>
+                <div className="flex gap-1">
+                  {(['single', 'grid2x2'] as const).map((layout) => (
+                    <button
+                      key={layout}
+                      onClick={() => setGlobalLayout(layout)}
+                      className={`flex-1 py-2 rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                        globalLayout === layout 
+                          ? 'bg-stone-900 text-white border-stone-900' 
+                          : 'bg-stone-50 text-stone-400 border-stone-200 hover:border-stone-300'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold uppercase">{layout === 'single' ? 'Enkel' : 'Intercom (2x2)'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button
                 onClick={applyGlobalSettings}
                 className="w-full py-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors text-sm font-medium"
@@ -334,14 +380,62 @@ export default function NameplateEditor() {
                   className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center"
                 >
                   <div className="flex-1 w-full">
-                    <input
-                      type="text"
-                      placeholder="Naam invullen..."
-                      value={plate.name}
-                      onChange={(e) => updateNameplate(plate.id, { name: e.target.value })}
-                      className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
-                      style={{ textAlign: plate.textAlign }}
-                    />
+                    {plate.layout === 'single' ? (
+                      <div className="flex gap-2 items-end">
+                        <div className="w-16">
+                          <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">Nr.</label>
+                          <input
+                            type="text"
+                            placeholder="Nr."
+                            value={plate.number || ''}
+                            onChange={(e) => updateNameplate(plate.id, { number: e.target.value })}
+                            className="w-full p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors text-sm"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">Naam</label>
+                          <input
+                            type="text"
+                            placeholder="Naam invullen..."
+                            value={plate.name}
+                            onChange={(e) => updateNameplate(plate.id, { name: e.target.value })}
+                            className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
+                            style={{ textAlign: plate.textAlign }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        {plate.entries?.map((entry, idx) => (
+                          <div key={idx} className="bg-stone-50 p-2 rounded-lg border border-stone-100">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Nr."
+                                value={entry.number}
+                                onChange={(e) => {
+                                  const newEntries = [...(plate.entries || [])];
+                                  newEntries[idx].number = e.target.value;
+                                  updateNameplate(plate.id, { entries: newEntries });
+                                }}
+                                className="w-12 bg-transparent border-b border-stone-200 outline-none text-xs font-bold"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Naam..."
+                                value={entry.name}
+                                onChange={(e) => {
+                                  const newEntries = [...(plate.entries || [])];
+                                  newEntries[idx].name = e.target.value;
+                                  updateNameplate(plate.id, { entries: newEntries });
+                                }}
+                                className={`flex-1 bg-transparent border-b border-stone-200 outline-none text-sm ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex gap-4 mt-2 items-center">
                       <div className="flex items-center gap-1 text-stone-400">
                         <Move size={14} />
@@ -453,23 +547,45 @@ export default function NameplateEditor() {
                 color: 'black',
               }}
             >
-              {plate.shape === 'banner' ? (
-                <svg 
-                  viewBox="0 0 100 40" 
-                  preserveAspectRatio="none" 
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                >
-                  <path 
-                    d="M 12,0 H 100 Q 88,20 100,40 H 12 A 12,20 0 0 1 12,0 Z" 
-                    fill="none" 
-                    stroke="black" 
-                    strokeWidth="0.5" 
-                  />
-                </svg>
+              {plate.layout === 'single' ? (
+                <>
+                  {plate.shape === 'banner' ? (
+                    <svg 
+                      viewBox="0 0 100 40" 
+                      preserveAspectRatio="none" 
+                      className="absolute inset-0 w-full h-full pointer-events-none"
+                    >
+                      <path 
+                        d="M 12,0 H 100 Q 88,20 100,40 H 12 A 12,20 0 0 1 12,0 Z" 
+                        fill="none" 
+                        stroke="black" 
+                        strokeWidth="0.5" 
+                      />
+                    </svg>
+                  ) : (
+                    <div className="absolute inset-0 border border-black pointer-events-none"></div>
+                  )}
+                  <div className="w-full relative z-10 flex items-baseline gap-2">
+                    {plate.number && <span className="text-[0.6em] opacity-70">{plate.number}</span>}
+                    <span className="flex-1">{plate.name}</span>
+                  </div>
+                </>
               ) : (
-                <div className="absolute inset-0 border border-black pointer-events-none"></div>
+                <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 border border-black">
+                  {plate.entries?.map((entry, idx) => (
+                    <div key={idx} className="border-[0.1mm] border-black p-1 flex flex-col justify-center relative overflow-hidden">
+                      {entry.number && (
+                        <span className="absolute top-0.5 left-1 text-[0.4em] font-bold leading-none">
+                          {entry.number}
+                        </span>
+                      )}
+                      <span className="w-full text-center leading-tight px-1" style={{ fontSize: '0.8em' }}>
+                        {entry.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
-              <span className="w-full relative z-10">{plate.name}</span>
             </div>
           ))}
         </div>
