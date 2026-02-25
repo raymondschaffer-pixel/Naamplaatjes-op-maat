@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Printer, Settings2, Type, Move, Download, Info, AlignLeft, AlignCenter, AlignRight, FileText, ClipboardList, Upload, Square, Bookmark } from 'lucide-react';
+import { Plus, Trash2, Printer, Settings2, Type, Move, Download, Info, AlignLeft, AlignCenter, AlignRight, FileText, ClipboardList, Upload, Square, Bookmark, Bold } from 'lucide-react';
 import * as mammoth from 'mammoth';
 
 interface Nameplate {
@@ -12,6 +12,7 @@ interface Nameplate {
   fontFamily: string;
   textAlign: 'left' | 'center' | 'right';
   shape: 'rectangle' | 'banner';
+  isBold: boolean;
 }
 
 const PRESETS = [
@@ -42,6 +43,7 @@ export default function NameplateEditor() {
       fontFamily: 'font-sans',
       textAlign: 'center',
       shape: 'banner',
+      isBold: true,
     },
   ]);
 
@@ -50,6 +52,7 @@ export default function NameplateEditor() {
   const [globalFont, setGlobalFont] = useState('font-sans');
   const [globalAlign, setGlobalAlign] = useState<'left' | 'center' | 'right'>('center');
   const [globalShape, setGlobalShape] = useState<'rectangle' | 'banner'>('banner');
+  const [globalBold, setGlobalBold] = useState(true);
   const [bulkNames, setBulkNames] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
 
@@ -63,6 +66,7 @@ export default function NameplateEditor() {
       fontFamily: globalFont,
       textAlign: globalAlign,
       shape: globalShape,
+      isBold: globalBold,
     };
     setNameplates([...nameplates, newPlate]);
   };
@@ -78,6 +82,7 @@ export default function NameplateEditor() {
       fontFamily: globalFont,
       textAlign: globalAlign,
       shape: globalShape,
+      isBold: globalBold,
     }));
     setNameplates([...nameplates, ...newPlates]);
     setBulkNames('');
@@ -132,6 +137,7 @@ export default function NameplateEditor() {
         fontFamily: globalFont,
         textAlign: globalAlign,
         shape: globalShape,
+        isBold: globalBold,
       }))
     );
   };
@@ -258,6 +264,20 @@ export default function NameplateEditor() {
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Stijl</label>
+                <button
+                  onClick={() => setGlobalBold(!globalBold)}
+                  className={`w-full py-2 rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                    globalBold 
+                      ? 'bg-stone-900 text-white border-stone-900' 
+                      : 'bg-stone-50 text-stone-400 border-stone-200 hover:border-stone-300'
+                  }`}
+                >
+                  <Bold size={18} />
+                  <span className="text-xs font-semibold">Dikgedrukt</span>
+                </button>
+              </div>
               <button
                 onClick={applyGlobalSettings}
                 className="w-full py-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors text-sm font-medium"
@@ -319,7 +339,7 @@ export default function NameplateEditor() {
                       placeholder="Naam invullen..."
                       value={plate.name}
                       onChange={(e) => updateNameplate(plate.id, { name: e.target.value })}
-                      className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily}`}
+                      className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
                       style={{ textAlign: plate.textAlign }}
                     />
                     <div className="flex gap-4 mt-2 items-center">
@@ -352,6 +372,18 @@ export default function NameplateEditor() {
                             {shape === 'rectangle' ? <Square size={14} /> : <Bookmark size={14} className="rotate-90" />}
                           </button>
                         ))}
+                        <div className="w-px h-4 bg-stone-100 mx-1"></div>
+                        <button
+                          onClick={() => updateNameplate(plate.id, { isBold: !plate.isBold })}
+                          className={`p-1 rounded transition-all ${
+                            plate.isBold 
+                              ? 'bg-stone-200 text-stone-900' 
+                              : 'text-stone-300 hover:text-stone-500'
+                          }`}
+                          title="Dikgedrukt"
+                        >
+                          <Bold size={14} />
+                        </button>
                         <div className="w-px h-4 bg-stone-100 mx-1"></div>
                         {(['left', 'center', 'right'] as const).map((align) => (
                           <button
@@ -408,7 +440,7 @@ export default function NameplateEditor() {
           {nameplates.map((plate) => (
             <div
               key={plate.id}
-              className={`relative flex items-center overflow-hidden break-inside-avoid ${plate.fontFamily}`}
+              className={`relative flex items-center overflow-hidden break-inside-avoid ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
               style={{
                 width: `${plate.width}mm`,
                 height: `${plate.height}mm`,
