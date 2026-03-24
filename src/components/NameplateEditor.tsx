@@ -1,20 +1,23 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Printer, Settings2, Type, Move, Download, Info, AlignLeft, AlignCenter, AlignRight, FileText, ClipboardList, Upload, Square, Bookmark, Bold } from 'lucide-react';
+import { Plus, Trash2, Printer, Settings2, Type, Move, Download, Info, AlignLeft, AlignCenter, AlignRight, FileText, ClipboardList, Upload, Square, Bookmark, Bold, Save, FolderOpen, X } from 'lucide-react';
 import * as mammoth from 'mammoth';
 
 interface NameplateEntry {
   name: string;
+  name2?: string;
   number: string;
 }
 
 interface Nameplate {
   id: string;
   name: string; // Used for single layout
+  name2?: string; // Used for single layout
   number?: string; // Used for single layout
   width: number; // in mm
   height: number; // in mm
   fontSize: number;
+  numberFontSize?: number;
   fontFamily: string;
   textAlign: 'left' | 'center' | 'right';
   shape: 'rectangle' | 'banner';
@@ -23,7 +26,29 @@ interface Nameplate {
   gridRows: number;
   gridCols: number;
   numberPlacement: 'left' | 'right' | 'above' | 'below';
+  name2Placement: 'beside' | 'below';
   entries?: NameplateEntry[]; // Used for grid layout
+}
+
+interface SavedProject {
+  id: string;
+  title: string;
+  date: string;
+  nameplates: Nameplate[];
+  settings: {
+    width: number;
+    height: number;
+    font: string;
+    align: 'left' | 'center' | 'right';
+    shape: 'rectangle' | 'banner';
+    bold: boolean;
+    layout: 'single' | 'grid';
+    rows: number;
+    cols: number;
+    numberPlacement: 'left' | 'right' | 'above' | 'below';
+    name2Placement: 'beside' | 'below';
+    numberFontSize: number;
+  };
 }
 
 const PRESETS = [
@@ -68,14 +93,85 @@ export default function NameplateEditor() {
   const [globalRows, setGlobalRows] = useState(2);
   const [globalCols, setGlobalCols] = useState(2);
   const [globalNumberPlacement, setGlobalNumberPlacement] = useState<'left' | 'right' | 'above' | 'below'>('above');
+  const [globalName2Placement, setGlobalName2Placement] = useState<'beside' | 'below'>('below');
+  const [globalNumberFontSize, setGlobalNumberFontSize] = useState(12);
   const [bulkNames, setBulkNames] = useState('');
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showSavedModal, setShowSavedModal] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+
+  // Load saved projects on mount
+  React.useEffect(() => {
+    const saved = localStorage.getItem('nameplate_projects');
+    if (saved) {
+      try {
+        setSavedProjects(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse saved projects', e);
+      }
+    }
+  }, []);
+
+  const saveProject = () => {
+    const title = projectTitle.trim() || `Project ${new Date().toLocaleDateString()}`;
+    const newProject: SavedProject = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      date: new Date().toISOString(),
+      nameplates,
+      settings: {
+        width: globalWidth,
+        height: globalHeight,
+        font: globalFont,
+        align: globalAlign,
+        shape: globalShape,
+        bold: globalBold,
+        layout: globalLayout,
+        rows: globalRows,
+        cols: globalCols,
+        numberPlacement: globalNumberPlacement,
+        name2Placement: globalName2Placement,
+        numberFontSize: globalNumberFontSize,
+      }
+    };
+
+    const updated = [newProject, ...savedProjects];
+    setSavedProjects(updated);
+    localStorage.setItem('nameplate_projects', JSON.stringify(updated));
+    setProjectTitle('');
+    alert('Project opgeslagen!');
+  };
+
+  const loadProject = (project: SavedProject) => {
+    setNameplates(project.nameplates);
+    setGlobalWidth(project.settings.width);
+    setGlobalHeight(project.settings.height);
+    setGlobalFont(project.settings.font);
+    setGlobalAlign(project.settings.align);
+    setGlobalShape(project.settings.shape);
+    setGlobalBold(project.settings.bold);
+    setGlobalLayout(project.settings.layout);
+    setGlobalRows(project.settings.rows);
+    setGlobalCols(project.settings.cols);
+    setGlobalNumberPlacement(project.settings.numberPlacement);
+    setGlobalName2Placement(project.settings.name2Placement || 'below');
+    setGlobalNumberFontSize(project.settings.numberFontSize || 12);
+    setShowSavedModal(false);
+  };
+
+  const deleteProject = (id: string) => {
+    const updated = savedProjects.filter(p => p.id !== id);
+    setSavedProjects(updated);
+    localStorage.setItem('nameplate_projects', JSON.stringify(updated));
+  };
 
   const addNameplate = () => {
     const totalEntries = globalLayout === 'grid' ? globalRows * globalCols : 0;
     const newPlate: Nameplate = {
       id: Math.random().toString(36).substr(2, 9),
       name: '',
+      name2: '',
       number: '',
       width: globalWidth,
       height: globalHeight,
@@ -88,7 +184,9 @@ export default function NameplateEditor() {
       gridRows: globalRows,
       gridCols: globalCols,
       numberPlacement: globalNumberPlacement,
-      entries: globalLayout === 'grid' ? Array.from({ length: totalEntries }, () => ({ name: '', number: '' })) : undefined
+      name2Placement: globalName2Placement,
+      numberFontSize: globalNumberFontSize,
+      entries: globalLayout === 'grid' ? Array.from({ length: totalEntries }, () => ({ name: '', name2: '', number: '' })) : undefined
     };
     setNameplates([...nameplates, newPlate]);
   };
@@ -112,9 +210,11 @@ export default function NameplateEditor() {
         gridRows: globalRows,
         gridCols: globalCols,
         numberPlacement: globalNumberPlacement,
+        name2Placement: globalName2Placement,
+        numberFontSize: globalNumberFontSize,
         entries: globalLayout === 'grid' ? [
-          { name: name.trim(), number: '' },
-          ...Array.from({ length: totalEntries - 1 }, () => ({ name: '', number: '' }))
+          { name: name.trim(), name2: '', number: '' },
+          ...Array.from({ length: totalEntries - 1 }, () => ({ name: '', name2: '', number: '' }))
         ] : undefined
       };
     });
@@ -130,6 +230,8 @@ export default function NameplateEditor() {
     if (preset.gridRows) setGlobalRows(preset.gridRows);
     if (preset.gridCols) setGlobalCols(preset.gridCols);
     if (preset.numberPlacement) setGlobalNumberPlacement(preset.numberPlacement);
+    if (preset.name2Placement) setGlobalName2Placement(preset.name2Placement);
+    if (preset.numberFontSize) setGlobalNumberFontSize(preset.numberFontSize);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,8 +284,10 @@ export default function NameplateEditor() {
           gridRows: globalRows,
           gridCols: globalCols,
           numberPlacement: globalNumberPlacement,
+          name2Placement: globalName2Placement,
+          numberFontSize: globalNumberFontSize,
           entries: globalLayout === 'grid' && (!p.entries || p.entries.length !== totalEntries) 
-            ? Array.from({ length: totalEntries }, (_, i) => p.entries?.[i] || { name: '', number: '' })
+            ? Array.from({ length: totalEntries }, (_, i) => p.entries?.[i] || { name: '', name2: '', number: '' })
             : p.entries
         };
       })
@@ -205,6 +309,13 @@ export default function NameplateEditor() {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => setShowSavedModal(true)}
+              className="flex items-center gap-2 bg-stone-100 text-stone-700 px-4 py-2 rounded-lg hover:bg-stone-200 transition-colors shadow-sm"
+            >
+              <FolderOpen size={18} />
+              <span className="hidden sm:inline">Projecten</span>
+            </button>
+            <button
               onClick={handlePrint}
               className="flex items-center gap-2 bg-stone-900 text-stone-50 px-4 py-2 rounded-lg hover:bg-stone-800 transition-colors shadow-sm"
             >
@@ -219,12 +330,33 @@ export default function NameplateEditor() {
         {/* Settings Sidebar */}
         <div className="lg:col-span-1 space-y-6">
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-            <div className="flex items-center gap-2 mb-4 text-stone-900 font-semibold">
-              <Settings2 size={20} />
-              <h2>Standaard Instellingen</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-stone-900 font-semibold">
+                <Settings2 size={20} />
+                <h2>Standaard Instellingen</h2>
+              </div>
             </div>
-            
+
             <div className="space-y-4">
+              <div className="pb-4 border-b border-stone-100">
+                <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-2">Project Opslaan</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Project naam..."
+                    value={projectTitle}
+                    onChange={(e) => setProjectTitle(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-stone-200"
+                  />
+                  <button
+                    onClick={saveProject}
+                    className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                    title="Opslaan"
+                  >
+                    <Save size={18} />
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Sjablonen</label>
                 <select
@@ -384,6 +516,29 @@ export default function NameplateEditor() {
                       <option value="below">Onder naam</option>
                     </select>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Nr. Grootte (pt)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={globalNumberFontSize}
+                        onChange={(e) => setGlobalNumberFontSize(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-200 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-stone-500 mb-1">Naam 2 Positie</label>
+                      <select
+                        value={globalName2Placement}
+                        onChange={(e) => setGlobalName2Placement(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-200 outline-none transition-all text-sm"
+                      >
+                        <option value="below">Onder naam 1</option>
+                        <option value="beside">Naast naam 1</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
               <button
@@ -455,12 +610,23 @@ export default function NameplateEditor() {
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">Naam</label>
+                          <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">Naam 1</label>
                           <input
                             type="text"
-                            placeholder="Naam invullen..."
+                            placeholder="Naam 1..."
                             value={plate.name}
                             onChange={(e) => updateNameplate(plate.id, { name: e.target.value })}
+                            className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
+                            style={{ textAlign: plate.textAlign }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">Naam 2 (optioneel)</label>
+                          <input
+                            type="text"
+                            placeholder="Naam 2..."
+                            value={plate.name2 || ''}
+                            onChange={(e) => updateNameplate(plate.id, { name2: e.target.value })}
                             className={`w-full text-xl p-2 border-b border-stone-100 focus:border-stone-400 outline-none transition-colors ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
                             style={{ textAlign: plate.textAlign }}
                           />
@@ -488,38 +654,65 @@ export default function NameplateEditor() {
                                 }}
                                 className={`${['above', 'below'].includes(plate.numberPlacement) ? 'w-full' : 'w-12'} bg-transparent border-b border-stone-200 outline-none text-xs font-bold`}
                               />
-                              <input
-                                type="text"
-                                placeholder="Naam..."
-                                value={entry.name}
-                                onChange={(e) => {
-                                  const newEntries = [...(plate.entries || [])];
-                                  newEntries[idx].name = e.target.value;
-                                  updateNameplate(plate.id, { entries: newEntries });
-                                }}
-                                className={`flex-1 bg-transparent border-b border-stone-200 outline-none text-sm ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
-                              />
+                              <div className="flex-1 flex flex-col gap-1">
+                                <input
+                                  type="text"
+                                  placeholder="Naam 1..."
+                                  value={entry.name}
+                                  onChange={(e) => {
+                                    const newEntries = [...(plate.entries || [])];
+                                    newEntries[idx].name = e.target.value;
+                                    updateNameplate(plate.id, { entries: newEntries });
+                                  }}
+                                  className={`w-full bg-transparent border-b border-stone-200 outline-none text-sm ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'}`}
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Naam 2..."
+                                  value={entry.name2 || ''}
+                                  onChange={(e) => {
+                                    const newEntries = [...(plate.entries || [])];
+                                    newEntries[idx].name2 = e.target.value;
+                                    updateNameplate(plate.id, { entries: newEntries });
+                                  }}
+                                  className={`w-full bg-transparent border-b border-stone-200 outline-none text-xs ${plate.fontFamily} ${plate.isBold ? 'font-bold' : 'font-normal'} opacity-80`}
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-                    <div className="flex gap-4 mt-2 items-center">
-                      <div className="flex items-center gap-1 text-stone-400">
-                        <Move size={14} />
-                        <span className="text-[10px] uppercase font-bold">{plate.width}x{plate.height}mm</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-stone-400">
-                        <Type size={14} />
-                        <input
-                          type="number"
-                          value={plate.fontSize}
-                          onChange={(e) => updateNameplate(plate.id, { fontSize: Number(e.target.value) })}
-                          className="w-12 bg-transparent text-[10px] font-bold outline-none focus:text-stone-600"
-                        />
-                        <span className="text-[10px] uppercase font-bold">pt</span>
-                      </div>
-                      <div className="flex gap-1 ml-auto">
+                      <div className="flex gap-4 mt-2 items-center">
+                        <div className="flex items-center gap-1 text-stone-400">
+                          <Move size={14} />
+                          <span className="text-[10px] uppercase font-bold">{plate.width}x{plate.height}mm</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-stone-400">
+                          <Type size={14} />
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px] uppercase font-bold text-stone-300">Naam:</span>
+                              <input
+                                type="number"
+                                value={plate.fontSize}
+                                onChange={(e) => updateNameplate(plate.id, { fontSize: Number(e.target.value) })}
+                                className="w-10 bg-transparent text-[10px] font-bold outline-none focus:text-stone-600"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[8px] uppercase font-bold text-stone-300">Nr:</span>
+                              <input
+                                type="number"
+                                value={plate.numberFontSize || 12}
+                                onChange={(e) => updateNameplate(plate.id, { numberFontSize: Number(e.target.value) })}
+                                className="w-10 bg-transparent text-[10px] font-bold outline-none focus:text-stone-600"
+                              />
+                            </div>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold">pt</span>
+                        </div>
+                        <div className="flex gap-1 ml-auto">
                         {(['rectangle', 'banner'] as const).map((shape) => (
                           <button
                             key={shape}
@@ -634,8 +827,22 @@ export default function NameplateEditor() {
                     <div className="absolute inset-0 border border-black pointer-events-none"></div>
                   )}
                   <div className="w-full relative z-10 flex items-baseline gap-2">
-                    {plate.number && <span className="text-[0.6em] opacity-70">{plate.number}</span>}
-                    <span className="flex-1">{plate.name}</span>
+                    {plate.number && (
+                      <span 
+                        className="opacity-70 leading-none"
+                        style={{ fontSize: `${plate.numberFontSize || plate.fontSize * 0.6}pt` }}
+                      >
+                        {plate.number}
+                      </span>
+                    )}
+                    <div className={`flex flex-1 ${plate.name2Placement === 'beside' ? 'flex-row gap-2 items-baseline' : 'flex-col'}`}>
+                      <span>{plate.name}</span>
+                      {plate.name2 && (
+                        <span className={`${plate.name2Placement === 'beside' ? 'text-[0.9em]' : 'text-[0.8em]'} opacity-80`}>
+                          {plate.name2}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : (
@@ -654,13 +861,23 @@ export default function NameplateEditor() {
                         plate.numberPlacement === 'right' ? 'flex-row-reverse' : 'flex-row'
                       }`}>
                         {entry.number && (
-                          <span className="text-[0.5em] font-bold leading-none opacity-80">
+                          <span 
+                            className="font-bold leading-none opacity-80"
+                            style={{ fontSize: `${plate.numberFontSize || plate.fontSize * 0.5}pt` }}
+                          >
                             {entry.number}
                           </span>
                         )}
-                        <span className="text-center leading-tight truncate" style={{ fontSize: '0.8em' }}>
-                          {entry.name}
-                        </span>
+                        <div className={`flex items-center justify-center leading-tight ${plate.name2Placement === 'beside' ? 'flex-row gap-1' : 'flex-col'}`}>
+                          <span className="truncate" style={{ fontSize: '0.8em' }}>
+                            {entry.name}
+                          </span>
+                          {entry.name2 && (
+                            <span className="truncate opacity-80" style={{ fontSize: plate.name2Placement === 'beside' ? '0.8em' : '0.6em' }}>
+                              {entry.name2}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -670,6 +887,70 @@ export default function NameplateEditor() {
           ))}
         </div>
       </div>
+
+      {/* Saved Projects Modal */}
+      <AnimatePresence>
+        {showSavedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm no-print">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-semibold text-stone-900">Opgeslagen Projecten</h3>
+                <button onClick={() => setShowSavedModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {savedProjects.length === 0 ? (
+                  <div className="text-center py-12 text-stone-400">
+                    <FolderOpen size={48} className="mx-auto mb-4 opacity-20" />
+                    <p>Nog geen opgeslagen projecten.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {savedProjects.map((project) => (
+                      <div key={project.id} className="p-4 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between group">
+                        <div>
+                          <h4 className="font-semibold text-stone-900">{project.title}</h4>
+                          <p className="text-xs text-stone-400">{new Date(project.date).toLocaleString()}</p>
+                          <p className="text-xs text-stone-500 mt-1">{project.nameplates.length} plaatjes &bull; {project.settings.layout === 'single' ? 'Enkel' : 'Intercom'}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => loadProject(project)}
+                            className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 transition-colors"
+                          >
+                            Laden
+                          </button>
+                          <button
+                            onClick={() => deleteProject(project.id)}
+                            className="p-2 text-stone-400 hover:text-red-500 transition-colors"
+                            title="Verwijderen"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-6 bg-stone-50 border-t border-stone-100 flex justify-end">
+                <button
+                  onClick={() => setShowSavedModal(false)}
+                  className="px-6 py-2 bg-stone-200 text-stone-700 rounded-lg font-medium hover:bg-stone-300 transition-colors"
+                >
+                  Sluiten
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Bulk Import Modal */}
       <AnimatePresence>
